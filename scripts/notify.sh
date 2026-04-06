@@ -11,7 +11,8 @@ set -euo pipefail
 
 # Configuration — override via /etc/hummingbird-cam.env
 NTFY_TOPIC="${NTFY_TOPIC:-hummingbird-nest}"
-NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
+NTFY_SERVER="${NTFY_SERVER:-http://192.168.8.212:2586}"
+NTFY_TOKEN="${NTFY_TOKEN:-}"
 NTFY_PRIORITY="${NTFY_PRIORITY:-default}"
 
 # Load environment overrides if present
@@ -22,13 +23,20 @@ fi
 EVENT_TYPE="${1:-unknown}"
 FILE_PATH="${2:-}"
 
+# Build auth header if token is set
+AUTH_ARGS=()
+if [[ -n "$NTFY_TOKEN" ]]; then
+    AUTH_ARGS=(-H "Authorization: Bearer ${NTFY_TOKEN}")
+fi
+
 case "$EVENT_TYPE" in
     event_start)
         curl -s \
+            "${AUTH_ARGS[@]}" \
             -H "Title: Nest Activity Detected" \
             -H "Priority: ${NTFY_PRIORITY}" \
             -H "Tags: bird,eyes" \
-            -d "Motion detected at the hummingbird nest! 🐦" \
+            -d "Motion detected at the hummingbird nest!" \
             "${NTFY_SERVER}/${NTFY_TOPIC}" > /dev/null 2>&1 &
         ;;
 
@@ -36,6 +44,7 @@ case "$EVENT_TYPE" in
         if [[ -n "$FILE_PATH" && -f "$FILE_PATH" ]]; then
             # Send snapshot image as attachment
             curl -s \
+                "${AUTH_ARGS[@]}" \
                 -H "Title: Nest Snapshot" \
                 -H "Priority: ${NTFY_PRIORITY}" \
                 -H "Tags: camera" \
@@ -48,6 +57,7 @@ case "$EVENT_TYPE" in
     event_end)
         # Quiet notification — motion event ended
         curl -s \
+            "${AUTH_ARGS[@]}" \
             -H "Title: Nest Quiet" \
             -H "Priority: min" \
             -H "Tags: zzz" \
