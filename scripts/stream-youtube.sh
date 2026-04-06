@@ -57,20 +57,28 @@ echo "Stream is live. Press Ctrl+C to stop."
 echo ""
 
 # ffmpeg relay: MJPEG in → H.264 out → YouTube RTMP
+# - Input framerate locked to 10fps to match motion's output
+# - Output framerate 10fps — no phantom frame duplication
+# - 1200kbps meets YouTube's minimum for smooth 480p
 # - ultrafast preset: minimal CPU usage (critical for Pi Zero 2 W)
-# - zerolatency tune: reduces stream delay
-# - 500kbps: reasonable for 640x480 on WiFi
-# - GOP 20 (2s at 10fps): YouTube recommendation for low-latency
+# - GOP 20 = keyframe every 2s at 10fps (YouTube recommended)
+# - Silent AAC audio track (YouTube requires audio in RTMP)
 exec ffmpeg \
+    -r 10 \
     -i "$MOTION_STREAM" \
+    -f lavfi -i anullsrc=r=44100:cl=mono \
     -c:v libx264 \
     -preset ultrafast \
     -tune zerolatency \
-    -b:v 500k \
-    -maxrate 600k \
-    -bufsize 1200k \
+    -r 10 \
+    -b:v 1200k \
+    -maxrate 1500k \
+    -bufsize 3000k \
     -g 20 \
     -keyint_min 10 \
     -pix_fmt yuv420p \
+    -c:a aac \
+    -b:a 32k \
+    -shortest \
     -f flv \
     "${YOUTUBE_RTMP}/${STREAM_KEY}"
