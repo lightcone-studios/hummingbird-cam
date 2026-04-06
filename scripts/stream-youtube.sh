@@ -43,7 +43,10 @@ echo "Target:  ${YOUTUBE_RTMP}/****"
 echo ""
 
 # Check that motion stream is accessible
-if ! curl -s --max-time 3 -o /dev/null "$MOTION_STREAM"; then
+# Exit code 28 = timeout, which is expected for an MJPEG stream (it never ends)
+# We use --head-like behavior: write 1 byte max, check HTTP response
+HEALTH_CODE=$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' "$MOTION_STREAM" 2>/dev/null || true)
+if [[ "$HEALTH_CODE" != "200" ]]; then
     echo "Error: Cannot reach motion stream at ${MOTION_STREAM}"
     echo "Is the hummingbird-cam service running?"
     echo "  sudo systemctl status hummingbird-cam"
