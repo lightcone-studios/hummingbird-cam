@@ -1,0 +1,20 @@
+[Unit]
+Description=Hummingbird Cam YouTube Live Stream
+After=hummingbird-cam.service
+Requires=hummingbird-cam.service
+
+[Service]
+Type=simple
+ExecStart=/opt/hummingbird-cam/stream-youtube.sh
+Restart=on-failure
+RestartSec=30
+
+# Run as motion user
+User=motion
+Group=motion
+
+# Stream key loaded from env file
+EnvironmentFile=/etc/hummingbird-cam.env
+
+[Install]
+WantedBy=multi-user.target

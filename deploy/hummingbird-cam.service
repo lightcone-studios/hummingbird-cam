@@ -1,0 +1,26 @@
+[Unit]
+Description=Hummingbird Nest Camera (motion)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStartPre=/bin/mkdir -p /var/run/motion
+ExecStart=/usr/bin/motion -c /etc/motion/motion.conf
+ExecStop=/bin/kill -SIGTERM $MAINPID
+PIDFile=/var/run/motion/motion.pid
+Restart=on-failure
+RestartSec=10
+
+# Run as motion user for minimal privilege
+User=motion
+Group=motion
+
+# Allow access to video devices
+SupplementaryGroups=video
+
+# Environment overrides for notifications
+EnvironmentFile=-/etc/hummingbird-cam.env
+
+[Install]
+WantedBy=multi-user.target
