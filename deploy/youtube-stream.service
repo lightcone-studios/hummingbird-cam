@@ -1,13 +1,15 @@
 [Unit]
 Description=Hummingbird Cam YouTube Live Stream
-After=hummingbird-cam.service
+After=hummingbird-cam.service network-online.target
 Requires=hummingbird-cam.service
+Wants=network-online.target
 
 [Service]
 Type=simple
 ExecStart=/opt/hummingbird-cam/stream-youtube.sh
-Restart=on-failure
+Restart=always
 RestartSec=30
+StartLimitIntervalSec=0
 
 # Run as motion user
 User=motion

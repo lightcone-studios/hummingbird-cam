@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=forking
-ExecStartPre=/bin/mkdir -p /var/run/motion
+RuntimeDirectory=motion
 ExecStart=/usr/bin/motion -c /etc/motion/motion.conf
 ExecStop=/bin/kill -SIGTERM $MAINPID
-PIDFile=/var/run/motion/motion.pid
+PIDFile=/run/motion/motion.pid
 Restart=on-failure
 RestartSec=10
 
