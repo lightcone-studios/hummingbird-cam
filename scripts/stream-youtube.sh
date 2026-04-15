@@ -51,29 +51,25 @@ echo "Stream is live. Press Ctrl+C to stop."
 echo ""
 
 # ffmpeg relay: MJPEG in → H.264 out → YouTube RTMP
-# - No input -r flag: let ffmpeg detect actual motion rate (no reinterpretation)
-# - -use_wallclock_as_timestamps: MJPEG has no internal timestamps; use wall clock
-#   so slow/variable source framerate is handled correctly
-# - -vsync cfr + output -r 15: upsample to constant 15fps (dup frames) so YouTube
-#   sees a steady stream even when the webcam delivers 6-8 fps
-# - libx264 veryfast: good quality/CPU balance on the i7
-# - Keyframe every 2s at 15fps output = -g 30
-# - 2500k average / 4000k max at 720p
+# - Input -r 10 matches motion.conf framerate — forces ffmpeg to interpret the
+#   MJPEG mpjpeg input at 10fps (the mpjpeg demuxer defaults to 25fps which
+#   causes videoIngestionStarved on YouTube because wall-clock frame arrival
+#   is much slower)
+# - Output -r 10 keeps the same rate end to end (no upsampling, no CFR games)
+# - GOP of 20 = keyframe every 2s at 10fps (YouTube recommended)
 exec ffmpeg \
     -thread_queue_size 512 \
-    -use_wallclock_as_timestamps 1 \
+    -r 10 \
     -i "$MOTION_STREAM" \
     -f lavfi -i anullsrc=r=44100:cl=stereo \
     -c:v libx264 \
     -preset veryfast \
     -tune zerolatency \
-    -vsync cfr \
-    -r 15 \
+    -r 10 \
     -b:v 2500k \
     -maxrate 4000k \
     -bufsize 8000k \
-    -g 30 \
-    -keyint_min 30 \
+    -g 20 \
     -pix_fmt yuv420p \
     -c:a aac \
     -b:a 128k \
