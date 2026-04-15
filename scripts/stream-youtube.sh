@@ -12,12 +12,11 @@
 # Architecture:
 #   [Webcam] → [motion :8081 MJPEG] → [ffmpeg] → [YouTube RTMP ingest]
 #
-# The Pi Zero 2 W can handle this at 640x480 @ 10fps with ultrafast preset.
-# Expected bandwidth: ~500kbps up. Check your WiFi.
+# Tuned for Hans (Mac mini, i7-3720QM, 16GB RAM) at 1280x720. Input framerate
+# auto-detected from motion — the C270 caps around 7-10 fps at 720p MJPG.
 
 set -euo pipefail
 
-# Load env if available
 if [[ -f /etc/hummingbird-cam.env ]]; then
     source /etc/hummingbird-cam.env
 fi
@@ -32,8 +31,6 @@ if [[ -z "$STREAM_KEY" ]]; then
     echo "Either:"
     echo "  1. Set YOUTUBE_STREAM_KEY in /etc/hummingbird-cam.env"
     echo "  2. Pass it as an argument: $0 <stream-key>"
-    echo ""
-    echo "Get your stream key from: https://studio.youtube.com → Go Live → Stream"
     exit 1
 fi
 
@@ -42,9 +39,6 @@ echo "Source:  ${MOTION_STREAM}"
 echo "Target:  ${YOUTUBE_RTMP}/****"
 echo ""
 
-# Check that motion stream is accessible
-# Exit code 28 = timeout, which is expected for an MJPEG stream (it never ends)
-# We use --head-like behavior: write 1 byte max, check HTTP response
 HEALTH_CODE=$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' "$MOTION_STREAM" 2>/dev/null || true)
 if [[ "$HEALTH_CODE" != "200" ]]; then
     echo "Error: Cannot reach motion stream at ${MOTION_STREAM}"
@@ -57,28 +51,33 @@ echo "Stream is live. Press Ctrl+C to stop."
 echo ""
 
 # ffmpeg relay: MJPEG in → H.264 out → YouTube RTMP
-# - Input framerate locked to 10fps to match motion's output
-# - Output framerate 10fps — no phantom frame duplication
-# - 1200kbps meets YouTube's minimum for smooth 480p
-# - ultrafast preset: minimal CPU usage (critical for Pi Zero 2 W)
-# - GOP 20 = keyframe every 2s at 10fps (YouTube recommended)
-# - Silent AAC audio track (YouTube requires audio in RTMP)
+# - No input -r flag: let ffmpeg detect actual motion rate (no reinterpretation)
+# - -use_wallclock_as_timestamps: MJPEG has no internal timestamps; use wall clock
+#   so slow/variable source framerate is handled correctly
+# - -vsync cfr + output -r 15: upsample to constant 15fps (dup frames) so YouTube
+#   sees a steady stream even when the webcam delivers 6-8 fps
+# - libx264 veryfast: good quality/CPU balance on the i7
+# - Keyframe every 2s at 15fps output = -g 30
+# - 2500k average / 4000k max at 720p
 exec ffmpeg \
-    -r 10 \
+    -thread_queue_size 512 \
+    -use_wallclock_as_timestamps 1 \
     -i "$MOTION_STREAM" \
-    -f lavfi -i anullsrc=r=44100:cl=mono \
+    -f lavfi -i anullsrc=r=44100:cl=stereo \
     -c:v libx264 \
-    -preset ultrafast \
+    -preset veryfast \
     -tune zerolatency \
-    -r 10 \
-    -b:v 1200k \
-    -maxrate 1500k \
-    -bufsize 3000k \
-    -g 20 \
-    -keyint_min 10 \
+    -vsync cfr \
+    -r 15 \
+    -b:v 2500k \
+    -maxrate 4000k \
+    -bufsize 8000k \
+    -g 30 \
+    -keyint_min 30 \
     -pix_fmt yuv420p \
     -c:a aac \
-    -b:a 32k \
+    -b:a 128k \
+    -ar 44100 \
     -shortest \
     -f flv \
     "${YOUTUBE_RTMP}/${STREAM_KEY}"

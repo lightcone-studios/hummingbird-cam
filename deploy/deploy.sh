@@ -1,40 +1,60 @@
 #!/usr/bin/env bash
-# deploy.sh — push config from this repo to Suzu and restart the service
+# deploy.sh — push scripts, config, and systemd units from this repo to the camera host
 #
 # Run from the development machine (Shiro).
 # Usage: ./deploy/deploy.sh [hostname]
+#
+# Default target is `hans` (Mac mini running Ubuntu 24.04).
+# Secrets (YOUTUBE_STREAM_KEY, NTFY_TOKEN, YouTube OAuth refresh token)
+# live on the host at /etc/hummingbird-cam.env and /etc/youtube_token.json.
+# This script never touches those.
 
 set -euo pipefail
 
-PI_HOST="${1:-suzu}"
+HOST="${1:-hans}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo "=== Deploying hummingbird-cam to ${PI_HOST} ==="
+echo "=== Deploying hummingbird-cam to ${HOST} ==="
 
-echo "--- Copying motion config ---"
-scp "$REPO_DIR/config/motion.conf" "${PI_HOST}:/tmp/motion.conf"
-ssh "$PI_HOST" "sudo cp /tmp/motion.conf /etc/motion/motion.conf"
+echo "--- Staging files in /tmp/hbc-stage ---"
+ssh "$HOST" "mkdir -p /tmp/hbc-stage"
 
-echo "--- Copying notification script ---"
-scp "$REPO_DIR/scripts/notify.sh" "${PI_HOST}:/tmp/notify.sh"
-ssh "$PI_HOST" "sudo cp /tmp/notify.sh /opt/hummingbird-cam/notify.sh && sudo chmod +x /opt/hummingbird-cam/notify.sh"
+rsync -az \
+    "$REPO_DIR/config/motion.conf" \
+    "$REPO_DIR/scripts/notify.sh" \
+    "$REPO_DIR/scripts/stream-youtube.sh" \
+    "$REPO_DIR/scripts/youtube-control.sh" \
+    "$REPO_DIR/thumbnail.jpg" \
+    "$REPO_DIR/deploy/"*.service \
+    "$REPO_DIR/deploy/"*.timer \
+    "${HOST}:/tmp/hbc-stage/"
 
-echo "--- Copying YouTube stream script ---"
-scp "$REPO_DIR/scripts/stream-youtube.sh" "${PI_HOST}:/tmp/stream-youtube.sh"
-ssh "$PI_HOST" "sudo cp /tmp/stream-youtube.sh /opt/hummingbird-cam/stream-youtube.sh && sudo chmod +x /opt/hummingbird-cam/stream-youtube.sh"
+echo "--- Installing files ---"
+ssh "$HOST" "sudo bash -s" << 'INSTALL'
+set -e
+cd /tmp/hbc-stage
 
-echo "--- Copying systemd services ---"
-scp "$REPO_DIR/deploy/hummingbird-cam.service" "${PI_HOST}:/tmp/hummingbird-cam.service"
-scp "$REPO_DIR/deploy/youtube-stream.service" "${PI_HOST}:/tmp/youtube-stream.service"
-ssh "$PI_HOST" "sudo cp /tmp/hummingbird-cam.service /tmp/youtube-stream.service /etc/systemd/system/ && sudo systemctl daemon-reload"
+install -m 755 notify.sh          /opt/hummingbird-cam/notify.sh
+install -m 755 stream-youtube.sh  /opt/hummingbird-cam/stream-youtube.sh
+install -m 755 youtube-control.sh /opt/hummingbird-cam/youtube-control.sh
+install -m 644 thumbnail.jpg      /opt/hummingbird-cam/thumbnail.jpg
+install -m 644 motion.conf        /etc/motion/motion.conf
 
-echo "--- Restarting motion service ---"
-ssh "$PI_HOST" "sudo systemctl restart hummingbird-cam"
+install -m 644 hummingbird-cam.service      /etc/systemd/system/hummingbird-cam.service
+install -m 644 youtube-stream.service       /etc/systemd/system/youtube-stream.service
+install -m 644 youtube-stream-start.service /etc/systemd/system/youtube-stream-start.service
+install -m 644 youtube-stream-start.timer   /etc/systemd/system/youtube-stream-start.timer
+install -m 644 youtube-stream-stop.service  /etc/systemd/system/youtube-stream-stop.service
+install -m 644 youtube-stream-stop.timer    /etc/systemd/system/youtube-stream-stop.timer
 
-echo "--- Checking status ---"
-ssh "$PI_HOST" "sudo systemctl status hummingbird-cam --no-pager -l" || true
+systemctl daemon-reload
+systemctl restart hummingbird-cam
+INSTALL
+
+echo "--- Status ---"
+ssh "$HOST" "systemctl --no-pager is-active hummingbird-cam youtube-stream youtube-stream-start.timer youtube-stream-stop.timer"
 
 echo ""
 echo "=== Deploy complete ==="
-echo "Stream: http://$(ssh "$PI_HOST" "hostname -I | awk '{print \$1}'" 2>/dev/null):8081"
+echo "MJPEG stream: http://${HOST}:8081"

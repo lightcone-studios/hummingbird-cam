@@ -1,0 +1,9 @@
+[Unit]
+Description=Start Hummingbird YouTube stream + broadcast
+
+[Service]
+Type=oneshot
+# 1. Create broadcast via API (autoStart=true)
+# 2. Start ffmpeg — YouTube sees fresh RTMP, auto-transitions to live
+ExecStart=/bin/bash -c '/opt/hummingbird-cam/youtube-control.sh start && systemctl start youtube-stream.service'
+TimeoutStartSec=120

@@ -2,54 +2,89 @@
 
 ## What This Is
 
-Raspberry Pi-powered hummingbird nest monitoring system. Motion-activated notifications with live streaming. Runs on **Suzu** (Pi Zero 2 W) with a Logitech C615 webcam pointed at a rescued hummingbird nest on Aaron's porch.
+Hummingbird nest monitoring system. Motion-activated notifications with a 24/7 YouTube live stream. Runs on **Hans** (2012 Mac mini, Ubuntu 24.04) with a Logitech C270 webcam pointed at a rescued hummingbird nest on Aaron's porch.
+
+Migrated off Suzu (Pi Zero 2 W) after USB reliability issues. Suzu is back to radio duty.
 
 ## Stack
 
-- **Hardware:** Raspberry Pi Zero 2 W (512MB RAM, quad-core A53 @ 1GHz)
-- **Camera:** Logitech HD Webcam C615 at `/dev/video0`
-- **Motion detection:** `motion` daemon (frame-differencing, lightweight)
-- **Notifications:** ntfy.sh push notifications with snapshot images
-- **Streaming:** motion built-in MJPEG stream (LAN) + relay for public access
-- **OS:** Raspbian Bookworm (Debian 12)
+- **Host:** Hans — Mac mini, Intel i7-3720QM (8 cores), 16 GB RAM, 110 GB SSD
+- **OS:** Ubuntu 24.04 LTS
+- **Camera:** Logitech HD Webcam C270 at `/dev/video0`, 1280×720 MJPG
+- **Motion detection:** `motion` daemon (frame-differencing)
+- **Notifications:** ntfy with bearer-token auth, delivered to a self-hosted ntfy instance
+- **Streaming:** motion MJPEG on `:8081` → ffmpeg H.264 relay → YouTube Live via RTMP
+- **Broadcast management:** `youtube-control.sh` uses the YouTube Data API (OAuth refresh token) to create/end broadcasts daily
 
 ## Architecture
 
 ```
-[C615 Webcam] → [motion daemon on Suzu]
-                    ├── motion detected → notify.sh → ntfy.sh push notification (with image)
-                    ├── MJPEG stream → :8081 (LAN access)
+[C270 Webcam] → [motion daemon on Hans]
+                    ├── motion detected → notify.sh → ntfy push with snapshot
+                    ├── MJPEG stream on :8081 ──→ [ffmpeg] ──→ YouTube RTMP
                     └── snapshots/videos → /var/lib/motion/
+```
+
+Daily schedule: `youtube-stream-start.timer` creates a broadcast and starts the relay at 07:00, `youtube-stream-stop.timer` ends it at 19:00.
+
+## Host Layout (Hans)
+
+```
+/opt/hummingbird-cam/
+  notify.sh             — ntfy event handler
+  stream-youtube.sh     — ffmpeg RTMP relay
+  youtube-control.sh    — broadcast lifecycle via YouTube API
+  thumbnail.jpg         — broadcast thumbnail
+
+/etc/motion/motion.conf       — motion daemon config
+/etc/hummingbird-cam.env      — secrets (stream key, ntfy token) — mode 0600
+/etc/youtube_token.json       — YouTube OAuth refresh token — mode 0600
+
+/etc/systemd/system/
+  hummingbird-cam.service       — motion daemon
+  youtube-stream.service        — ffmpeg RTMP relay
+  youtube-stream-start.service  — API call to create broadcast + start relay
+  youtube-stream-start.timer    — 07:00 daily
+  youtube-stream-stop.service   — API call to end broadcast + stop relay
+  youtube-stream-stop.timer     — 19:00 daily
 ```
 
 ## Deploying Changes
 
 ```bash
-# From this repo on Shiro:
+# From this repo on Shiro (default target: hans):
 ./deploy/deploy.sh
 ```
 
-This SCPs config files to Suzu and restarts the motion service.
+This rsyncs scripts, config, and systemd units to Hans, then restarts motion. Secrets in `/etc/hummingbird-cam.env` and `/etc/youtube_token.json` live only on the host and are never touched by the deploy.
 
-## Key Constraints
+To set up a fresh host, see `deploy/hummingbird-cam.env.example` for the shape of the env file.
 
-- **RAM is tight.** 425MB total. Capture at 640x480, not 1080p.
-- **CPU is limited.** 10-15 fps max. No ML inference on-device.
-- **WiFi only.** Stream bandwidth limited by Pi Zero 2 W's single-band WiFi.
-- **USB 2.0 via OTG.** Webcam shares the single USB port.
+## Operational Notes
 
-## File Layout
+- Sleep/suspend/hibernate are systemd-masked on Hans — the box stays awake 24/7.
+- `ssh hans` should just work from Shiro (key auth, passwordless sudo configured).
+- Motion writes to `/var/lib/motion` (disk is plentiful, no rotation set up yet — monitor if this grows).
+- YouTube broadcast ID and OAuth token are cached in `/tmp/` (ephemeral, recreated per session).
+- `healthStatus=good` on the YouTube stream is the indicator that ffmpeg's output rate matches YouTube's expectations. `videoIngestionStarved` usually means the input framerate flags on ffmpeg are wrong — see stream-youtube.sh comments.
+
+## File Layout (repo)
 
 ```
-config/motion.conf    — motion daemon configuration (deployed to Suzu)
-scripts/notify.sh     — ntfy notification script (called by motion on events)
-scripts/setup.sh      — first-time Pi setup (install deps)
-deploy/deploy.sh      — push config to Suzu and restart service
-deploy/hummingbird-cam.service — systemd unit file
+config/motion.conf              — motion daemon configuration
+scripts/notify.sh               — ntfy notification handler
+scripts/stream-youtube.sh       — ffmpeg RTMP relay
+scripts/youtube-control.sh      — YouTube broadcast lifecycle
+scripts/setup.sh                — (legacy Pi setup, not used on Hans)
+thumbnail.jpg                   — broadcast thumbnail
+deploy/deploy.sh                — rsync repo to host, install, restart
+deploy/*.service, *.timer       — systemd units
+deploy/hummingbird-cam.env.example — env shape for secrets
 ```
 
 ## Conventions
 
-- Config is authored here, deployed to Suzu via `deploy.sh`
-- Motion output (snapshots, videos) stays on the Pi, never committed
-- Notifications go through ntfy.sh (public, no self-hosted dependency)
+- Config authored here, deployed to Hans via `deploy.sh`
+- Motion output (snapshots, videos) stays on the host, never committed
+- Secrets never committed — example env shows the shape only
+- Broadcast assets (thumbnail, stream key, OAuth creds) are part of the deploy pipeline

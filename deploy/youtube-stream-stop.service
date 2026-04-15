@@ -1,0 +1,9 @@
+[Unit]
+Description=Stop Hummingbird YouTube stream + broadcast
+
+[Service]
+Type=oneshot
+# 1. End broadcast via API
+# 2. Stop ffmpeg
+ExecStart=/bin/bash -c '/opt/hummingbird-cam/youtube-control.sh stop; systemctl stop youtube-stream.service'
+TimeoutStartSec=60

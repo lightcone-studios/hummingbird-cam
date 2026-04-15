@@ -6,6 +6,9 @@
 snapshots/
 videos/
 
+# Asset exceptions
+!thumbnail.jpg
+
 # Logs
 *.log
 logs/

@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=forking
 RuntimeDirectory=motion
+
 ExecStart=/usr/bin/motion -c /etc/motion/motion.conf
 ExecStop=/bin/kill -SIGTERM $MAINPID
 PIDFile=/run/motion/motion.pid
