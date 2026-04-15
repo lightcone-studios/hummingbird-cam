@@ -5,6 +5,8 @@
 *.mp4
 snapshots/
 videos/
+captures/
+*.mpg
 
 # Asset exceptions
 !thumbnail.jpg
