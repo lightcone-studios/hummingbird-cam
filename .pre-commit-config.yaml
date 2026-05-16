@@ -1,0 +1,38 @@
+# Lightcone Studios — Shared Pre-commit Configuration
+#
+# Copy to your repo root as .pre-commit-config.yaml, then run:
+#   pre-commit install
+#
+# See specs/development-workflow.md for rationale and repo-specific profiles.
+#
+# ── ADR-033 bridge notice ──
+# This config is the R&D-tier secret-scan layer. It runs at the git layer
+# (bypassable via --no-verify, no audit-chain trace, no tier awareness).
+# It will be SUPERSEDED by the harness-level secret-scan-precommit.sh hook
+# from ADR-033 Phase 3, which:
+#   - Reads the repo's **Security-tier:** declaration
+#   - Hard-blocks in HIGH-TRUST, warns in NORMAL, logs in LOW-STAKES
+#   - Writes every event to ~/.claude/audit/ (tamper-evident chain)
+#   - Cannot be bypassed by --no-verify
+# Until Phase 3 lands, this file is the bridge. After Phase 3:
+#   - Verify the harness hook covers everything this file covers
+#   - Remove this file from all repos (single PR per repo, tier-aware)
+#   - Update specs/development-workflow.md to point at the harness hook
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
