@@ -1,5 +1,8 @@
 # CLAUDE.md — hummingbird-cam
 
+**SWE-tier:** LIGHT
+**Security-tier:** NORMAL
+
 ## What This Is
 
 Hummingbird nest monitoring system. Motion-activated notifications with a 24/7 YouTube live stream. Runs on **Hans** (2012 Mac mini, Ubuntu 24.04) with a Logitech C270 webcam pointed at a rescued hummingbird nest on Aaron's porch.
