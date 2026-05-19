@@ -9,6 +9,19 @@ Hummingbird nest monitoring system. Motion-activated notifications with a 24/7 Y
 
 Migrated off Suzu (Pi Zero 2 W) after USB reliability issues. Suzu is back to radio duty.
 
+## Cross-Cutting Standards
+
+Operational standards for Lightcone Studios work (deployment, CI/CD, git strategy, SWE discipline, security tiers, agent protocols) live in **`~/WORK/LIGHTCONE_STUDIOS_LLC/lightcone-ops/`** — the canonical source of truth.
+
+Start at `lightcone-ops/specs/INDEX.md` for the categorized roadmap. Key references:
+
+- **`specs/engineering-discipline.md`** — 12-discipline SWE canon (auto-loaded into every Claude Code session via `~/.claude/rules/`)
+- **`specs/collaboration-contract.md`** — Aaron ↔ Claude partnership baseline (auto-loaded)
+- **`specs/swe-tdd-tiers.md`** + **`specs/agent-security-tiers.md`** — tier semantics (this repo declares LIGHT / NORMAL above)
+- **`decisions/INDEX.md`** — the ADR registry
+
+If you're drafting a new convention for this repo, check `lightcone-ops/specs/` first.
+
 ## Stack
 
 - **Host:** Hans — Mac mini, Intel i7-3720QM (8 cores), 16 GB RAM, 110 GB SSD
