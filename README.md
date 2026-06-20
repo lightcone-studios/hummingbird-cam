@@ -1,5 +1,7 @@
 # hummingbird-cam
 
+![A mother Anna's hummingbird feeding two chicks in the monitored nest](thumbnail.jpg)
+
 Raspberry Pi-powered hummingbird nest monitor with motion-activated push notifications and live streaming.
 
 Built to keep watch over two rescued baby hummingbirds — confirming mom returns, tracking feeding visits, and sharing the nest with anyone who wants to watch.
