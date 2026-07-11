@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Pre-commit gate: refuse a commit that breaks a seal or trips a science gate.
+# Install with science/hooks/install.sh. Nudge, not tyrant — it only blocks on real
+# violations (broken signature, edited results, goalpost-moving), never on pending gates.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+if ! python3 "$ROOT/science/tools/science.py" check; then
+  echo ""
+  echo "pre-commit: a science gate or seal check failed (see above). Commit blocked."
+  echo "  Override for a genuine emergency: git commit --no-verify"
+  exit 1
+fi

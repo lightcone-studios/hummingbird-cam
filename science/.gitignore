@@ -1,0 +1,7 @@
+# The Secure Enclave binary is built from source per-machine (Shiro only) — never committed.
+tools/sesign
+tools/*.dSYM
+
+# Python noise
+__pycache__/
+*.pyc
